@@ -1,0 +1,10 @@
+README.md
+CHANGELOG.md
+LICENSE
+install.sh
+.gitignore
+.clawhubignore
+.github/
+.DS_Store
+node_modules/
+spool/
