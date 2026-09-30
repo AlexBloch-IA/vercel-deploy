@@ -73,12 +73,13 @@ for x in d["deployments"]:
 
 *Observed 2026-09, Pro team, CLI 54 and 59.* `vercel deploy` run inside a git checkout sends the HEAD commit metadata (`meta.githubCommit*` / `gitCommit*`) **even when the project has no Git connection**. If that author is not a team member (typical: an agent committing under its own identity), a remote-build **production** deploy ends `BLOCKED` with *"The deployment was blocked because the commit author doesn't have permission to create deployments for this project"*. The CLI prints `UNKNOWN`, which reads like a slow build.
 
-| Path | Result (observed) |
-|---|---|
-| Preview deploy, same author | passes |
-| `vercel build --prod --yes` then `vercel deploy --prebuilt --prod` | passed (one verified case; undocumented exception, may close) |
-| Commit author made a team member, or commits made under a member identity you control | passes — the durable fix |
-| Deploy from a copy without `.git` (`git ls-files` → tar → temp dir + `.vercel/project.json`) | removes the metadata entirely; fallback if prebuilt stops passing |
+`BLOCKED` is an **authorization decision**, not a bug. Do not route around it: no alternate deploy mode, no stripped repository copy, no rewritten author. **STOP and hand to a human** who owns the team. Authorized fixes, in order:
+
+1. Invite the commit author to the team (a human owner decides; seat cost applies).
+2. Make agent commits under an identity that is already a team member **and** that the owner has approved for automated deploys.
+3. Deploy from an approved CI or service identity (Git integration or a team-scoped token issued for that purpose).
+
+Preview deploys by the same author are not blocked, so a preview is a safe way to confirm the build itself is fine while waiting for the owner.
 
 The documented rule (docs, *Deploying private Git repositories*) covers Git-connected private repos in GitHub orgs, GitLab groups and non-personal Bitbucket workspaces — **not** collaborators on personal accounts. The CLI case above is not documented.
 
@@ -257,8 +258,8 @@ project:   my-app  team: team_example
 state:     BLOCKED (target=production, source=cli, build=remote)
 evidence:  "commit author doesn't have permission to create deployments"
 cause:     HEAD authored by a non-member identity; CLI forwards commit meta
-fix:       vercel build --prod --yes && vercel deploy --prebuilt --prod
-verified:  §1 -> READY production cli prebuilt err=-
+fix:       HUMAN — team owner adds the author or approves a member/CI identity (§1a); preview deploy confirms the build
+verified:  NOT VERIFIED (waiting on owner)
 ```
 
 ## Troubleshooting
@@ -274,6 +275,6 @@ verified:  §1 -> READY production cli prebuilt err=-
 
 This skill ONLY: reads deployment state through the API with a token you supply; checks `vercel.json` against the published schema; proposes routing, redirect and relay fixes; verifies DNS through DoH and `--resolve`; ships one reference relay that refuses to start without secrets and an HTTPS target.
 
-This skill NEVER: deploys to production on its own; changes team membership, tokens or DNS records; prints or commits a token; disables signature checks to "get the webhook through"; acks an event it has not written to disk; reports a fix as done without the re-run in `verified:`.
+This skill NEVER: deploys to production on its own; works around a `BLOCKED` authorization decision (no prebuilt or stripped-copy deploys to dodge it); changes team membership, tokens or DNS records; prints or commits a token; disables signature checks to "get the webhook through"; acks an event it has not written to disk; reports a fix as done without the re-run in `verified:`.
 
 *Alexandre Bloch — ClawHub @AlexBloch-IA*
